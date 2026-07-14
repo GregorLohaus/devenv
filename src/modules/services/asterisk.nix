@@ -19,6 +19,38 @@ let
   logDir = stateDir + "/log";
   spoolDir = stateDir + "/spool";
 
+  defaultModules = [
+    "res_pjproject.so"
+    "res_sorcery_config.so"
+    "res_sorcery_memory.so"
+    "res_sorcery_astdb.so"
+    "res_pjsip.so"
+    "res_pjsip_pubsub.so"
+    "res_pjsip_session.so"
+    "res_rtp_asterisk.so"
+    "res_pjsip_endpoint_identifier_ip.so"
+    "res_pjsip_endpoint_identifier_user.so"
+    "res_pjsip_authenticator_digest.so"
+    "res_pjsip_outbound_authenticator_digest.so"
+    "res_pjsip_registrar.so"
+    "res_pjsip_sdp_rtp.so"
+    "chan_pjsip.so"
+    "pbx_config.so"
+    "app_echo.so"
+    "app_dial.so"
+    "codec_ulaw.so"
+    "codec_alaw.so"
+  ];
+
+  modulesConfig = lib.concatStringsSep "\n" (
+    [
+      "autoload=${if cfg.modules.autoload then "yes" else "no"}"
+    ]
+    ++ map (module: "preload = ${module}") cfg.modules.preload
+    ++ map (module: "load = ${module}") cfg.modules.load
+    ++ map (module: "noload = ${module}") cfg.modules.noload
+  );
+
   generatedConfigFiles = {
     "asterisk.conf" = ''
       [directories]
@@ -48,7 +80,7 @@ let
 
     "modules.conf" = ''
       [modules]
-      autoload=yes
+      ${modulesConfig}
       ${cfg.extraModulesConfig}
     '';
 
@@ -138,8 +170,72 @@ in
       default = "";
       description = "Additional text to append to `modules.conf` in the `[modules]` section.";
       example = ''
-        noload => chan_sip.so
+        noload = chan_sip.so
       '';
+    };
+
+    modules = {
+      autoload = lib.mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Whether Asterisk should automatically load every available module.
+          The default is disabled to keep devenv startup quiet and predictable.
+        '';
+      };
+
+      load = lib.mkOption {
+        type = types.listOf types.str;
+        default = defaultModules;
+        defaultText = lib.literalExpression ''
+          [
+            "res_pjproject.so"
+            "res_sorcery_config.so"
+            "res_sorcery_memory.so"
+            "res_sorcery_astdb.so"
+            "res_pjsip.so"
+            "res_pjsip_pubsub.so"
+            "res_pjsip_session.so"
+            "res_rtp_asterisk.so"
+            "res_pjsip_endpoint_identifier_ip.so"
+            "res_pjsip_endpoint_identifier_user.so"
+            "res_pjsip_authenticator_digest.so"
+            "res_pjsip_outbound_authenticator_digest.so"
+            "res_pjsip_registrar.so"
+            "res_pjsip_sdp_rtp.so"
+            "chan_pjsip.so"
+            "pbx_config.so"
+            "app_echo.so"
+            "app_dial.so"
+            "codec_ulaw.so"
+            "codec_alaw.so"
+          ]
+        '';
+        description = ''
+          Asterisk modules to load explicitly in `modules.conf`.
+          Set this to add a larger feature set, or use `lib.mkForce [ ]` together with `modules.autoload = true` to rely entirely on autoloading.
+        '';
+        example = [
+          "res_pjproject.so"
+          "res_pjsip.so"
+          "chan_pjsip.so"
+          "app_echo.so"
+        ];
+      };
+
+      preload = lib.mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        description = "Asterisk modules to preload before normal module loading.";
+        example = [ "res_config_sqlite3.so" ];
+      };
+
+      noload = lib.mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        description = "Asterisk modules to prevent from loading.";
+        example = [ "chan_sip.so" ];
+      };
     };
 
     extraPjsipConfig = lib.mkOption {

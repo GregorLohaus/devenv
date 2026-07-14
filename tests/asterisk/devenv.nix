@@ -12,6 +12,8 @@ in
 
   enterTest = ''
     test "$ASTERISK_PORT" = "${toString port}"
+    grep -qx "autoload=no" "$ASTERISK_CONFIG_DIR/modules.conf"
+    grep -qx "load = chan_pjsip.so" "$ASTERISK_CONFIG_DIR/modules.conf"
     test -S "$ASTERISK_RUNTIME_DIR/asterisk.ctl"
 
     ${pkgs.asterisk}/bin/asterisk \
