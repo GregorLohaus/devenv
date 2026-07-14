@@ -29,11 +29,15 @@ in
     grep -qx "autoload=no" "$ASTERISK_CONFIG_DIR/modules.conf"
     grep -qx "load = chan_pjsip.so" "$ASTERISK_CONFIG_DIR/modules.conf"
     grep -qx "load = res_ari.so" "$ASTERISK_CONFIG_DIR/modules.conf"
+    grep -qx "load = res_stasis_recording.so" "$ASTERISK_CONFIG_DIR/modules.conf"
     grep -qx "enabled = yes" "$ASTERISK_CONFIG_DIR/ari.conf"
     grep -qx "bindport = ${toString ariPort}" "$ASTERISK_CONFIG_DIR/http.conf"
+    test -f "$ASTERISK_CONFIG_DIR/websocket_client.conf"
     grep -qx "enable = no" "$ASTERISK_CONFIG_DIR/cdr.conf"
     grep -qx "displayconnects = no" "$ASTERISK_CONFIG_DIR/manager.conf"
     grep -qx "type = startup" "$ASTERISK_CONFIG_DIR/pjproject.conf"
+    test "$(grep -n "load = res_stasis_recording.so" "$ASTERISK_CONFIG_DIR/modules.conf" | cut -d: -f1)" -lt \
+      "$(grep -n "load = res_ari_recordings.so" "$ASTERISK_CONFIG_DIR/modules.conf" | cut -d: -f1)"
     test -S "$ASTERISK_RUNTIME_DIR/asterisk.ctl"
 
     ${pkgs.asterisk}/bin/asterisk \

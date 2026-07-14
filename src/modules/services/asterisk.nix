@@ -51,6 +51,12 @@ let
     "res_stasis.so"
     "res_ari.so"
     "res_ari_model.so"
+    "app_stasis.so"
+    "res_stasis_answer.so"
+    "res_stasis_device_state.so"
+    "res_stasis_playback.so"
+    "res_stasis_recording.so"
+    "res_stasis_snoop.so"
     "res_ari_applications.so"
     "res_ari_asterisk.so"
     "res_ari_bridges.so"
@@ -62,7 +68,6 @@ let
     "res_ari_recordings.so"
     "res_ari_sounds.so"
     "app_exec.so"
-    "app_stasis.so"
   ];
 
   modulesConfig = lib.concatStringsSep "\n" (
@@ -224,6 +229,8 @@ let
       tlsenable = no
       ${cfg.ari.extraHttpConfig}
     '';
+
+    "websocket_client.conf" = "";
   };
 
   generatedConfigFiles = defaultConfigFiles // lib.optionalAttrs cfg.ari.enable ariConfigFiles;
