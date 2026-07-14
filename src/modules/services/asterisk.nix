@@ -51,7 +51,7 @@ let
     ++ map (module: "noload = ${module}") cfg.modules.noload
   );
 
-  generatedConfigFiles = {
+  defaultConfigFiles = {
     "asterisk.conf" = ''
       [directories]
       astetcdir => ${configDir}
@@ -111,9 +111,74 @@ let
       console => notice,warning,error,verbose
       ${cfg.extraLoggerConfig}
     '';
+
+    "stasis.conf" = ''
+      [taskpool]
+
+      [declined_message_types]
+    '';
+
+    "ccss.conf" = ''
+      [general]
+      enabled = no
+    '';
+
+    "cdr.conf" = ''
+      [general]
+      enable = no
+    '';
+
+    "cel.conf" = ''
+      [general]
+      enable = no
+    '';
+
+    "features.conf" = ''
+      [general]
+
+      [featuremap]
+
+      [applicationmap]
+    '';
+
+    "indications.conf" = ''
+      [general]
+      country = us
+
+      [us]
+      description = United States / North America
+      ringcadence = 2000,4000
+      dial = 350+440
+      busy = 480+620/500,0/500
+      ring = 440+480/2000,0/4000
+      congestion = 480+620/250,0/250
+      callwaiting = 440/300,0/10000
+      dialrecall = 350+440
+      record = 1400/500,0/15000
+      info = !950/330,!1400/330,!1800/330,0/1000
+      stutter = 350+440
+    '';
+
+    "acl.conf" = "";
+
+    "manager.conf" = ''
+      [general]
+      enabled = no
+    '';
+
+    "udptl.conf" = ''
+      [general]
+      udptlstart = 4000
+      udptlend = 4999
+    '';
+
+    "pjproject.conf" = ''
+      [startup]
+      type = startup
+    '';
   };
 
-  configFiles = generatedConfigFiles // cfg.extraConfigFiles;
+  configFiles = defaultConfigFiles // cfg.configFiles // cfg.extraConfigFiles;
   configSourceDir = pkgs.linkFarm "asterisk-config" (
     lib.mapAttrsToList
       (name: text: {
@@ -123,7 +188,7 @@ let
       configFiles
   );
 
-  reservedConfigFileNames = builtins.attrNames generatedConfigFiles;
+  reservedConfigFileNames = builtins.attrNames defaultConfigFiles;
   collidingConfigFileNames = lib.intersectLists reservedConfigFileNames (builtins.attrNames cfg.extraConfigFiles);
 in
 {
@@ -275,16 +340,30 @@ in
       description = "Additional text to append to `logger.conf` in the `[logfiles]` section.";
     };
 
+    configFiles = lib.mkOption {
+      type = types.attrsOf types.lines;
+      default = { };
+      description = ''
+        Asterisk configuration files to override or add in `astetcdir`.
+        Values here are merged over devenv's generated defaults, so this can be used to replace generated files such as `manager.conf`, `cdr.conf`, or `pjproject.conf`.
+      '';
+      example = lib.literalExpression ''
+        {
+          "manager.conf" = "[general]\nenabled=yes\nbindaddr=127.0.0.1\nport=5038\n";
+        }
+      '';
+    };
+
     extraConfigFiles = lib.mkOption {
       type = types.attrsOf types.lines;
       default = { };
       description = ''
         Additional Asterisk configuration files to place in `astetcdir`.
-        Generated core files cannot be replaced through this option.
+        Generated files cannot be replaced through this option; use `services.asterisk.configFiles` to override generated files.
       '';
       example = lib.literalExpression ''
         {
-          "manager.conf" = "[general]\nenabled=yes\nbindaddr=127.0.0.1\nport=5038\n";
+          "http.conf" = "[general]\nenabled=no\n";
         }
       '';
     };
