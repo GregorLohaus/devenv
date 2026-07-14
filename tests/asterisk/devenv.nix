@@ -11,7 +11,7 @@ in
     verbose = 1;
     ari = {
       enable = true;
-      port = 80880;
+      port = 18088;
       username = "devenv";
       password = "devenv";
     };
@@ -44,9 +44,12 @@ in
       -C "$ASTERISK_CONFIG_DIR/asterisk.conf" \
       -rx "pjsip show transports" | grep -q devenv-udp
 
-    ${pkgs.curl}/bin/curl \
-      --fail \
-      --user "$ASTERISK_ARI_USERNAME:$ASTERISK_ARI_PASSWORD" \
-      "$ASTERISK_ARI_URL/asterisk/info" | grep -q '"system"'
+    ${pkgs.asterisk}/bin/asterisk \
+      -C "$ASTERISK_CONFIG_DIR/asterisk.conf" \
+      -rx "ari show status" | grep -q "Enabled: Yes"
+
+    ${pkgs.asterisk}/bin/asterisk \
+      -C "$ASTERISK_CONFIG_DIR/asterisk.conf" \
+      -rx "ari show users" | grep -q "$ASTERISK_ARI_USERNAME"
   '';
 }
