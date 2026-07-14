@@ -8,8 +8,11 @@ let
   # stable conflict-free port value to inject into pjsip.conf.
   basePort = cfg.port;
   allocatedPort = config.processes.asterisk.ports.main.value;
+  baseAriPort = cfg.ari.port;
+  allocatedAriPort = if cfg.ari.enable then config.processes.asterisk.ports.ari.value else baseAriPort;
 
   bindAddress = if cfg.bind == null then "0.0.0.0" else cfg.bind;
+  ariBindAddress = if cfg.ari.bind == null then "0.0.0.0" else cfg.ari.bind;
   stateDir = config.env.DEVENV_STATE + "/asterisk";
   runtimeDir = config.env.DEVENV_RUNTIME + "/asterisk";
   configDir = stateDir + "/config";
@@ -42,12 +45,32 @@ let
     "codec_alaw.so"
   ];
 
+  ariModules = [
+    "res_http_websocket.so"
+    "res_websocket_client.so"
+    "res_stasis.so"
+    "res_ari.so"
+    "res_ari_model.so"
+    "res_ari_applications.so"
+    "res_ari_asterisk.so"
+    "res_ari_bridges.so"
+    "res_ari_channels.so"
+    "res_ari_device_states.so"
+    "res_ari_endpoints.so"
+    "res_ari_events.so"
+    "res_ari_playbacks.so"
+    "res_ari_recordings.so"
+    "res_ari_sounds.so"
+    "app_exec.so"
+    "app_stasis.so"
+  ];
+
   modulesConfig = lib.concatStringsSep "\n" (
     [
       "autoload=${if cfg.modules.autoload then "yes" else "no"}"
     ]
     ++ map (module: "preload = ${module}") cfg.modules.preload
-    ++ map (module: "load = ${module}") cfg.modules.load
+    ++ map (module: "load = ${module}") (cfg.modules.load ++ lib.optionals cfg.ari.enable ariModules)
     ++ map (module: "noload = ${module}") cfg.modules.noload
   );
 
@@ -178,7 +201,33 @@ let
     '';
   };
 
-  configFiles = defaultConfigFiles // cfg.configFiles // cfg.extraConfigFiles;
+  ariConfigFiles = {
+    "ari.conf" = ''
+      [general]
+      enabled = yes
+      pretty = ${if cfg.ari.pretty then "yes" else "no"}
+      ${lib.optionalString (cfg.ari.allowedOrigins != null) "allowed_origins = ${cfg.ari.allowedOrigins}"}
+      ${cfg.ari.extraAriConfig}
+
+      [${cfg.ari.username}]
+      type = user
+      read_only = ${if cfg.ari.readOnly then "yes" else "no"}
+      password = ${cfg.ari.password}
+      password_format = plain
+    '';
+
+    "http.conf" = ''
+      [general]
+      enabled = yes
+      bindaddr = ${ariBindAddress}
+      bindport = ${toString allocatedAriPort}
+      tlsenable = no
+      ${cfg.ari.extraHttpConfig}
+    '';
+  };
+
+  generatedConfigFiles = defaultConfigFiles // lib.optionalAttrs cfg.ari.enable ariConfigFiles;
+  configFiles = generatedConfigFiles // cfg.configFiles // cfg.extraConfigFiles;
   configSourceDir = pkgs.linkFarm "asterisk-config" (
     lib.mapAttrsToList
       (name: text: {
@@ -188,7 +237,7 @@ let
       configFiles
   );
 
-  reservedConfigFileNames = builtins.attrNames defaultConfigFiles;
+  reservedConfigFileNames = builtins.attrNames generatedConfigFiles;
   collidingConfigFileNames = lib.intersectLists reservedConfigFileNames (builtins.attrNames cfg.extraConfigFiles);
 in
 {
@@ -303,6 +352,72 @@ in
       };
     };
 
+    ari = {
+      enable = lib.mkEnableOption "Asterisk REST Interface (ARI)";
+
+      bind = lib.mkOption {
+        type = types.nullOr types.str;
+        default = "127.0.0.1";
+        description = ''
+          The IP interface for Asterisk's HTTP server, used by ARI.
+          `null` means "all interfaces".
+        '';
+        example = "127.0.0.1";
+      };
+
+      port = lib.mkOption {
+        type = types.port;
+        default = 8088;
+        description = "The HTTP port for Asterisk ARI.";
+      };
+
+      username = lib.mkOption {
+        type = types.str;
+        default = "asterisk";
+        description = "ARI username.";
+      };
+
+      password = lib.mkOption {
+        type = types.str;
+        default = "asterisk";
+        description = ''
+          ARI password.
+          This is written to the generated `ari.conf` and is visible in the Nix store.
+        '';
+      };
+
+      readOnly = lib.mkOption {
+        type = types.bool;
+        default = false;
+        description = "Whether the generated ARI user should be read-only.";
+      };
+
+      pretty = lib.mkOption {
+        type = types.bool;
+        default = false;
+        description = "Whether ARI responses should be formatted for readability.";
+      };
+
+      allowedOrigins = lib.mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Comma-separated ARI CORS allowed origins. Use `*` to allow all origins.";
+        example = "http://localhost:3000";
+      };
+
+      extraAriConfig = lib.mkOption {
+        type = types.lines;
+        default = "";
+        description = "Additional text to append to `ari.conf` in the `[general]` section.";
+      };
+
+      extraHttpConfig = lib.mkOption {
+        type = types.lines;
+        default = "";
+        description = "Additional text to append to `http.conf` in the `[general]` section.";
+      };
+    };
+
     extraPjsipConfig = lib.mkOption {
       type = types.lines;
       default = "";
@@ -389,6 +504,12 @@ in
       ASTERISK_RUNTIME_DIR = runtimeDir;
       ASTERISK_LOG_DIR = logDir;
       ASTERISK_SPOOL_DIR = spoolDir;
+    } // lib.optionalAttrs cfg.ari.enable {
+      ASTERISK_ARI_HOST = ariBindAddress;
+      ASTERISK_ARI_PORT = allocatedAriPort;
+      ASTERISK_ARI_URL = "http://${ariBindAddress}:${toString allocatedAriPort}/ari";
+      ASTERISK_ARI_USERNAME = cfg.ari.username;
+      ASTERISK_ARI_PASSWORD = cfg.ari.password;
     };
 
     tasks."devenv:asterisk:setup" = {
@@ -411,7 +532,11 @@ in
     };
 
     processes.asterisk = {
-      ports.main.allocate = basePort;
+      ports = {
+        main.allocate = basePort;
+      } // lib.optionalAttrs cfg.ari.enable {
+        ari.allocate = baseAriPort;
+      };
       exec = "exec ${cfg.package}/bin/asterisk -f -C \"$ASTERISK_CONFIG_DIR/asterisk.conf\"";
 
       ready = {
