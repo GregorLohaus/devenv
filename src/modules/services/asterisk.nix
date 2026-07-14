@@ -15,6 +15,7 @@ let
   configDir = stateDir + "/config";
   cacheDir = stateDir + "/cache";
   dataDir = stateDir + "/lib";
+  packageDataDir = "${cfg.package}/var/lib/asterisk";
   logDir = stateDir + "/log";
   spoolDir = stateDir + "/spool";
 
@@ -27,7 +28,7 @@ let
       astdbdir => ${dataDir}
       astkeydir => ${dataDir}/keys
       astcachedir => ${cacheDir}
-      astdatadir => ${cfg.package}/share/asterisk
+      astdatadir => ${packageDataDir}
       astagidir => ${dataDir}/agi-bin
       astspooldir => ${spoolDir}
       astrundir => ${runtimeDir}
