@@ -13,18 +13,20 @@ let
   stateDir = config.env.DEVENV_STATE + "/asterisk";
   runtimeDir = config.env.DEVENV_RUNTIME + "/asterisk";
   configDir = stateDir + "/config";
+  cacheDir = stateDir + "/cache";
   dataDir = stateDir + "/lib";
   logDir = stateDir + "/log";
   spoolDir = stateDir + "/spool";
 
   generatedConfigFiles = {
     "asterisk.conf" = ''
-      [directories](!)
+      [directories]
       astetcdir => ${configDir}
       astmoddir => ${cfg.package}/lib/asterisk/modules
       astvarlibdir => ${dataDir}
       astdbdir => ${dataDir}
       astkeydir => ${dataDir}/keys
+      astcachedir => ${cacheDir}
       astdatadir => ${cfg.package}/share/asterisk
       astagidir => ${dataDir}/agi-bin
       astspooldir => ${spoolDir}
@@ -206,6 +208,7 @@ in
       ASTERISK_HOST = bindAddress;
       ASTERISK_CONFIG_DIR = configDir;
       ASTERISK_STATE_DIR = stateDir;
+      ASTERISK_CACHE_DIR = cacheDir;
       ASTERISK_DATA_DIR = dataDir;
       ASTERISK_RUNTIME_DIR = runtimeDir;
       ASTERISK_LOG_DIR = logDir;
@@ -217,6 +220,7 @@ in
         mkdir -p \
           "$ASTERISK_STATE_DIR" \
           "$ASTERISK_CONFIG_DIR" \
+          "$ASTERISK_CACHE_DIR" \
           "$ASTERISK_DATA_DIR" \
           "$ASTERISK_DATA_DIR/agi-bin" \
           "$ASTERISK_DATA_DIR/keys" \
